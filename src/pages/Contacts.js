@@ -18,7 +18,7 @@ function Contacts() {
   const phone = user?.phone;
   const userId = user?.id;
 
-  // ✅ JOIN
+  // ✅ JOIN SOCKET
   useEffect(() => {
     if (phone) {
       socket.emit("join", { phone });
@@ -34,11 +34,11 @@ function Contacts() {
 
   const fetchContacts = async () => {
     try {
-      console.log("📡 Fetching contacts...");
       const res = await api.get(`/contacts?user_id=${userId}`);
+      console.log("CONTACTS:", res.data);
       setContacts(res.data);
     } catch (err) {
-      console.log("❌ Error fetching contacts:", err);
+      console.log("❌ Fetch error:", err);
     }
   };
 
@@ -48,7 +48,7 @@ function Contacts() {
     return () => socket.off("onlineUsers");
   }, []);
 
-  // 🎥 STREAM
+  // 🎥 START STREAM
   const startLocalStream = async (type) => {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
@@ -58,17 +58,21 @@ function Contacts() {
     return stream;
   };
 
-  const createPeerConnection = (targetPhone) => {
+  // 🎥 PEER
+  const createPeerConnection = (target) => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
-    pc.ontrack = (e) => setRemoteStream(e.streams[0]);
+    pc.ontrack = (e) => {
+      console.log("REMOTE STREAM RECEIVED");
+      setRemoteStream(e.streams[0]);
+    };
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         socket.emit("iceCandidate", {
-          to: targetPhone,
+          to: target,
           candidate: e.candidate,
         });
       }
@@ -77,7 +81,7 @@ function Contacts() {
     return pc;
   };
 
-  // ✅ CALL
+  // 📞 CALL
   const callUser = async (targetPhone, type) => {
     setCurrentCallUser(targetPhone);
 
@@ -110,7 +114,9 @@ function Contacts() {
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.offer)
+      );
 
       setPeerConnection(pc);
     });
@@ -118,13 +124,14 @@ function Contacts() {
     return () => socket.off("incomingCall");
   }, []);
 
+  // ✅ ACCEPT
   const acceptCall = async () => {
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
     socket.emit("acceptCall", {
       from: incomingCall.from,
-      to: phone, // ✅ FIXED
+      to: phone,
       answer,
     });
 
@@ -132,6 +139,7 @@ function Contacts() {
     setCallActive(true);
   };
 
+  // ❌ REJECT
   const rejectCall = () => {
     socket.emit("rejectCall", {
       from: phone,
@@ -140,6 +148,7 @@ function Contacts() {
     setIncomingCall(null);
   };
 
+  // ✅ CALL STARTED
   useEffect(() => {
     socket.on("callStarted", async ({ answer }) => {
       await peerConnection.setRemoteDescription(
@@ -151,16 +160,20 @@ function Contacts() {
     return () => socket.off("callStarted");
   }, [peerConnection]);
 
+  // ✅ ICE
   useEffect(() => {
     socket.on("iceCandidate", async ({ candidate }) => {
       if (peerConnection) {
-        await peerConnection.addIceCandidate(candidate);
+        await peerConnection.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
       }
     });
 
     return () => socket.off("iceCandidate");
   }, [peerConnection]);
 
+  // ❌ END
   const endCall = () => {
     if (peerConnection) peerConnection.close();
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
@@ -194,6 +207,7 @@ function Contacts() {
     <div style={{ padding: "20px" }}>
       <h2>Contacts</h2>
 
+      {/* 📞 INCOMING */}
       {incomingCall && (
         <div>
           Incoming call from {incomingCall.from}
@@ -202,6 +216,7 @@ function Contacts() {
         </div>
       )}
 
+      {/* 📞 ACTIVE */}
       {callActive && (
         <div>
           Call in progress
@@ -209,30 +224,31 @@ function Contacts() {
         </div>
       )}
 
+      {/* 🎥 VIDEO */}
       <video autoPlay muted ref={(v) => v && (v.srcObject = localStream)} />
       <video autoPlay ref={(v) => v && (v.srcObject = remoteStream)} />
 
-      {contacts.map((c) => (
-  <div key={c.phone} style={{ marginBottom: "10px" }}>
-    
-    {/* ✅ SHOW BOTH */}
-    <b>{c.name || "Unknown"}</b> ({c.phone})
+      {/* 👥 CONTACTS */}
+      {contacts.length === 0 ? (
+        <p>No contacts found</p>
+      ) : (
+        contacts.map((c) => (
+          <div key={c.phone} style={{ marginBottom: "10px" }}>
+            <b>{c.name}</b> ({c.phone})
+            {onlineUsers.includes(c.phone) ? " 🟢" : " 🔴"}
 
-    {/* ✅ ONLINE STATUS */}
-    {onlineUsers.includes(c.phone) ? " 🟢" : " 🔴"}
+            <br />
 
-    <br />
+            <button onClick={() => callUser(c.phone, "audio")}>
+              📞 Audio
+            </button>
 
-    <button onClick={() => callUser(c.phone, "audio")}>
-      📞 audio
-    </button>
-
-    <button onClick={() => callUser(c.phone, "video")}>
-      🎥 video
-    </button>
-
-  </div>
-))}
+            <button onClick={() => callUser(c.phone, "video")}>
+              🎥 Video
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
