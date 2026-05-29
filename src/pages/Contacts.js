@@ -16,7 +16,6 @@ function Contacts() {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const phone = user?.phone;
-  const userId = user?.id;
 
   // ✅ JOIN SOCKET
   useEffect(() => {
@@ -25,16 +24,16 @@ function Contacts() {
     }
   }, [phone]);
 
-  // ✅ FETCH CONTACTS
+  // ✅ FETCH CONTACTS (FIXED)
   useEffect(() => {
-    if (userId) {
+    if (phone) {
       fetchContacts();
     }
-  }, [userId]);
+  }, [phone]);
 
   const fetchContacts = async () => {
     try {
-      const res = await api.get(`/contacts?user_id=${userId}`);
+      const res = await api.get(`/contacts?user_phone=${phone}`);
       console.log("CONTACTS:", res.data);
       setContacts(res.data);
     } catch (err) {
@@ -58,7 +57,7 @@ function Contacts() {
     return stream;
   };
 
-  // 🎥 PEER
+  // 🎥 PEER CONNECTION
   const createPeerConnection = (target) => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -81,65 +80,83 @@ function Contacts() {
     return pc;
   };
 
-  // 📞 CALL
+  // 📞 CALL USER
   const callUser = async (targetPhone, type) => {
-    setCurrentCallUser(targetPhone);
+    try {
+      setCurrentCallUser(targetPhone);
 
-    const stream = await startLocalStream(type);
-    const pc = createPeerConnection(targetPhone);
+      const stream = await startLocalStream(type);
+      const pc = createPeerConnection(targetPhone);
 
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    socket.emit("callUser", {
-      from: phone,
-      to: targetPhone,
-      type,
-      offer,
-    });
-
-    setPeerConnection(pc);
-  };
-
-  // 📞 INCOMING
-  useEffect(() => {
-    socket.on("incomingCall", async (data) => {
-      setIncomingCall(data);
-      setCurrentCallUser(data.from);
-
-      const stream = await startLocalStream(data.type);
-      const pc = createPeerConnection(data.from);
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      await pc.setRemoteDescription(
-        new RTCSessionDescription(data.offer)
+      stream.getTracks().forEach((track) =>
+        pc.addTrack(track, stream)
       );
 
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      socket.emit("callUser", {
+        from: phone,
+        to: targetPhone,
+        type,
+        offer,
+      });
+
       setPeerConnection(pc);
+    } catch (err) {
+      console.log("CALL ERROR:", err);
+    }
+  };
+
+  // 📞 INCOMING CALL
+  useEffect(() => {
+    socket.on("incomingCall", async (data) => {
+      try {
+        setIncomingCall(data);
+        setCurrentCallUser(data.from);
+
+        const stream = await startLocalStream(data.type);
+        const pc = createPeerConnection(data.from);
+
+        stream.getTracks().forEach((track) =>
+          pc.addTrack(track, stream)
+        );
+
+        await pc.setRemoteDescription(
+          new RTCSessionDescription(data.offer)
+        );
+
+        setPeerConnection(pc);
+      } catch (err) {
+        console.log("INCOMING ERROR:", err);
+      }
     });
 
     return () => socket.off("incomingCall");
   }, []);
 
-  // ✅ ACCEPT
+  // ✅ ACCEPT CALL
   const acceptCall = async () => {
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    try {
+      if (!peerConnection) return;
 
-    socket.emit("acceptCall", {
-      from: incomingCall.from,
-      to: phone,
-      answer,
-    });
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
 
-    setIncomingCall(null);
-    setCallActive(true);
+      socket.emit("acceptCall", {
+        from: incomingCall.from,
+        to: phone,
+        answer,
+      });
+
+      setIncomingCall(null);
+      setCallActive(true);
+    } catch (err) {
+      console.log("ACCEPT ERROR:", err);
+    }
   };
 
-  // ❌ REJECT
+  // ❌ REJECT CALL
   const rejectCall = () => {
     socket.emit("rejectCall", {
       from: phone,
@@ -151,32 +168,44 @@ function Contacts() {
   // ✅ CALL STARTED
   useEffect(() => {
     socket.on("callStarted", async ({ answer }) => {
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-      setCallActive(true);
+      try {
+        if (!peerConnection) return;
+
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
+
+        setCallActive(true);
+      } catch (err) {
+        console.log("CALL START ERROR:", err);
+      }
     });
 
     return () => socket.off("callStarted");
   }, [peerConnection]);
 
-  // ✅ ICE
+  // ✅ ICE CANDIDATE
   useEffect(() => {
     socket.on("iceCandidate", async ({ candidate }) => {
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(
-          new RTCIceCandidate(candidate)
-        );
+      try {
+        if (peerConnection && candidate) {
+          await peerConnection.addIceCandidate(
+            new RTCIceCandidate(candidate)
+          );
+        }
+      } catch (err) {
+        console.log("ICE ERROR:", err);
       }
     });
 
     return () => socket.off("iceCandidate");
   }, [peerConnection]);
 
-  // ❌ END
+  // ❌ END CALL
   const endCall = () => {
     if (peerConnection) peerConnection.close();
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
+    if (localStream)
+      localStream.getTracks().forEach((t) => t.stop());
 
     socket.emit("endCall", {
       from: phone,
@@ -187,6 +216,7 @@ function Contacts() {
     setRemoteStream(null);
   };
 
+  // 📞 CALL ENDED
   useEffect(() => {
     socket.on("callEnded", () => {
       setCallActive(false);
@@ -235,6 +265,7 @@ function Contacts() {
         contacts.map((c) => (
           <div key={c.phone} style={{ marginBottom: "10px" }}>
             <b>{c.name}</b> ({c.phone})
+
             {onlineUsers.includes(c.phone) ? " 🟢" : " 🔴"}
 
             <br />
