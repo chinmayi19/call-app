@@ -1,8 +1,8 @@
 import { useState } from "react";
 import api from "../services/api";
+// import { getFCMToken } from "../firebase"; ❌ temporarily remove
 
 function Login() {
-
   const [formData, setFormData] = useState({
     phone: "",
     password: "",
@@ -19,32 +19,47 @@ function Login() {
     e.preventDefault();
 
     try {
-      const res = await api.post("/auth/login", formData);
+      // ✅ CLEAN DATA (VERY IMPORTANT)
+      const cleanData = {
+        phone: formData.phone.trim(),
+        password: formData.password,
+      };
 
-      // ✅ store token
+      // ✅ API CALL
+      const res = await api.post("/api/auth/login", cleanData);
+
+      // ✅ STORE TOKEN
       localStorage.setItem("token", res.data.token);
+
+      // ✅ STORE USER
+      localStorage.setItem("user", JSON.stringify(res.data.user));
 
       alert("Login successful");
 
-      // ✅ redirect to home
-      window.location.href = "/";
+      // ✅ REDIRECT
+      window.location.href = "/contacts";
 
     } catch (error) {
-      console.log(error);
-      alert("Invalid credentials");
+      console.log(
+        "LOGIN ERROR:",
+        error.response?.data || error.message
+      );
+
+      alert(
+        error.response?.data?.message || "Login failed"
+      );
     }
   };
 
   return (
-    <div>
+    <div style={{ padding: "20px" }}>
       <h2>Login</h2>
 
       <form onSubmit={handleSubmit}>
-
         <input
           type="text"
           name="phone"
-          placeholder="Phone"
+          placeholder="Enter phone number"
           value={formData.phone}
           onChange={handleChange}
         />
@@ -54,17 +69,14 @@ function Login() {
         <input
           type="password"
           name="password"
-          placeholder="Password"
+          placeholder="Enter password"
           value={formData.password}
           onChange={handleChange}
         />
 
         <br /><br />
 
-        <button type="submit">
-          Login
-        </button>
-
+        <button type="submit">Login</button>
       </form>
     </div>
   );

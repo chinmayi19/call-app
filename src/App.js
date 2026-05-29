@@ -7,34 +7,36 @@ import {
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Contacts from "./pages/Contacts";
 
 function App() {
 
-  // check if user is logged in
   const token = localStorage.getItem("token");
 
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* Default route */}
+        {/* HOME */}
         <Route
           path="/"
           element={
-            token ? <h2>Dashboard (Logged In)</h2> : <Navigate to="/login" />
+            token ? <Contacts /> : <Navigate to="/login" />
           }
         />
 
-        {/* Login */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        {/* LOGIN */}
+        <Route path="/login" element={<Login />} />
 
-        {/* Register */}
+        {/* REGISTER */}
+        <Route path="/register" element={<Register />} />
+
+        {/* ✅ ADD THIS (VERY IMPORTANT) */}
         <Route
-          path="/register"
-          element={<Register />}
+          path="/contacts"
+          element={
+            token ? <Contacts /> : <Navigate to="/login" />
+          }
         />
 
       </Routes>

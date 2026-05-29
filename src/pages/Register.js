@@ -2,7 +2,6 @@ import { useState } from "react";
 import api from "../services/api";
 
 function Register() {
-
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -20,29 +19,27 @@ function Register() {
     e.preventDefault();
 
     try {
-      const res = await api.post("/auth/register", formData);
+      await api.post("/api/auth/register", formData); // ✅ FIXED
 
       alert("Registration successful");
 
-      // ✅ redirect to login
       window.location.href = "/login";
 
     } catch (error) {
-      console.log(error);
+      console.log("REGISTER ERROR:", error.response?.data || error.message); // ✅ better debug
       alert("User already exists or error occurred");
     }
   };
 
   return (
-    <div>
+    <div style={{ padding: "20px" }}>
       <h2>Register</h2>
 
       <form onSubmit={handleSubmit}>
-
         <input
           type="text"
           name="name"
-          placeholder="Name"
+          placeholder="Enter name"
           value={formData.name}
           onChange={handleChange}
         />
@@ -52,7 +49,7 @@ function Register() {
         <input
           type="text"
           name="phone"
-          placeholder="Phone"
+          placeholder="Enter phone number"
           value={formData.phone}
           onChange={handleChange}
         />
@@ -62,17 +59,14 @@ function Register() {
         <input
           type="password"
           name="password"
-          placeholder="Password"
+          placeholder="Enter password"
           value={formData.password}
           onChange={handleChange}
         />
 
         <br /><br />
 
-        <button type="submit">
-          Register
-        </button>
-
+        <button type="submit">Register</button>
       </form>
     </div>
   );
