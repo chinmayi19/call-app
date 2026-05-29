@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "../services/api";
 import socket from "../socket";
 
@@ -12,23 +12,33 @@ function Contacts() {
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [peerConnection, setPeerConnection] = useState(null);
+
+  const peerRef = useRef(null);
 
   const user = JSON.parse(localStorage.getItem("user"));
-  const phone = user?.phone;
+  const phone = user?.phone?.trim(); // ✅ FIX: trim
 
-  // ✅ JOIN SOCKET
+  // ✅ JOIN SOCKET (VERY IMPORTANT FIX)
   useEffect(() => {
-    if (phone) {
+    if (!phone) return;
+
+    socket.connect(); // ✅ force connect
+
+    socket.emit("join", { phone });
+
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
       socket.emit("join", { phone });
-    }
+    });
+
+    return () => {
+      socket.off("connect");
+    };
   }, [phone]);
 
   // ✅ FETCH CONTACTS
   useEffect(() => {
-    if (phone) {
-      fetchContacts();
-    }
+    if (phone) fetchContacts();
   }, [phone]);
 
   const fetchContacts = async () => {
@@ -40,9 +50,13 @@ function Contacts() {
     }
   };
 
-  // ✅ ONLINE USERS
+  // ✅ ONLINE USERS FIX
   useEffect(() => {
-    socket.on("onlineUsers", setOnlineUsers);
+    socket.on("onlineUsers", (users) => {
+      console.log("ONLINE:", users);
+      setOnlineUsers(users.map(u => u.trim())); // ✅ FIX
+    });
+
     return () => socket.off("onlineUsers");
   }, []);
 
@@ -62,13 +76,11 @@ function Contacts() {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
-    // ✅ RECEIVE REMOTE STREAM (IMPORTANT)
     pc.ontrack = (event) => {
-      console.log("REMOTE STREAM RECEIVED");
+      console.log("REMOTE STREAM");
       setRemoteStream(event.streams[0]);
     };
 
-    // ✅ ICE
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit("iceCandidate", {
@@ -83,12 +95,14 @@ function Contacts() {
 
   // 📞 CALL USER
   const callUser = async (targetPhone, type) => {
-    setCurrentCallUser(targetPhone);
+    const cleanTarget = targetPhone.trim();
+
+    setCurrentCallUser(cleanTarget);
 
     const stream = await startLocalStream(type);
-    const pc = createPeerConnection(targetPhone);
+    const pc = createPeerConnection(cleanTarget);
 
-    // ✅ ADD TRACKS BEFORE OFFER
+    // ✅ IMPORTANT FIX
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
@@ -98,24 +112,26 @@ function Contacts() {
 
     socket.emit("callUser", {
       from: phone,
-      to: targetPhone,
+      to: cleanTarget,
       type,
       offer,
     });
 
-    setPeerConnection(pc);
+    peerRef.current = pc;
   };
 
   // 📞 INCOMING CALL
   useEffect(() => {
     socket.on("incomingCall", async (data) => {
+      console.log("INCOMING CALL:", data);
+
       setIncomingCall(data);
       setCurrentCallUser(data.from);
 
       const stream = await startLocalStream(data.type);
       const pc = createPeerConnection(data.from);
 
-      // ✅ ADD TRACKS BEFORE ANSWER
+      // ✅ IMPORTANT FIX
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
@@ -124,7 +140,7 @@ function Contacts() {
         new RTCSessionDescription(data.offer)
       );
 
-      setPeerConnection(pc);
+      peerRef.current = pc;
     });
 
     return () => socket.off("incomingCall");
@@ -132,11 +148,14 @@ function Contacts() {
 
   // ✅ ACCEPT CALL
   const acceptCall = async () => {
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    const pc = peerRef.current;
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
     socket.emit("acceptCall", {
-      to: incomingCall.from, // ✅ FIXED
+      from: phone,
+      to: incomingCall.from,
       answer,
     });
 
@@ -144,7 +163,7 @@ function Contacts() {
     setCallActive(true);
   };
 
-  // ❌ REJECT CALL
+  // ❌ REJECT
   const rejectCall = () => {
     socket.emit("rejectCall", {
       to: incomingCall.from,
@@ -155,32 +174,35 @@ function Contacts() {
   // ✅ CALL STARTED
   useEffect(() => {
     socket.on("callStarted", async ({ answer }) => {
-      await peerConnection.setRemoteDescription(
+      const pc = peerRef.current;
+      if (!pc) return;
+
+      await pc.setRemoteDescription(
         new RTCSessionDescription(answer)
       );
+
       setCallActive(true);
     });
 
     return () => socket.off("callStarted");
-  }, [peerConnection]);
+  }, []);
 
-  // ✅ ICE RECEIVER
+  // ✅ ICE
   useEffect(() => {
     socket.on("iceCandidate", async ({ candidate }) => {
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(
-          new RTCIceCandidate(candidate)
-        );
-      }
+      const pc = peerRef.current;
+      if (!pc) return;
+
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
     return () => socket.off("iceCandidate");
-  }, [peerConnection]);
+  }, []);
 
   // ❌ END CALL
   const endCall = () => {
-    if (peerConnection) peerConnection.close();
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
+    if (peerRef.current) peerRef.current.close();
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
 
     socket.emit("endCall", {
       to: currentCallUser,
@@ -190,7 +212,6 @@ function Contacts() {
     setRemoteStream(null);
   };
 
-  // ❌ LISTEN END / REJECT
   useEffect(() => {
     socket.on("callEnded", () => {
       setCallActive(false);
@@ -233,43 +254,39 @@ function Contacts() {
         autoPlay
         muted
         playsInline
-        ref={(video) => {
-          if (video && localStream) {
-            video.srcObject = localStream;
-          }
-        }}
+        ref={(v) => v && localStream && (v.srcObject = localStream)}
       />
 
       <video
         autoPlay
         playsInline
-        ref={(video) => {
-          if (video && remoteStream) {
-            video.srcObject = remoteStream;
-          }
-        }}
+        ref={(v) => v && remoteStream && (v.srcObject = remoteStream)}
       />
 
-      {/* 👥 CONTACT LIST */}
+      {/* 👥 CONTACTS */}
       {contacts.length === 0 ? (
         <p>No contacts found</p>
       ) : (
-        contacts.map((c) => (
-          <div key={c.contact_phone} style={{ marginBottom: "10px" }}>
-            <b>{c.name}</b> ({c.contact_phone})
-            {onlineUsers.includes(c.contact_phone) ? " 🟢" : " 🔴"}
+        contacts.map((c) => {
+          const contactPhone = c.contact_phone.trim();
 
-            <br />
+          return (
+            <div key={contactPhone}>
+              <b>{c.name}</b> ({contactPhone})
+              {onlineUsers.includes(contactPhone) ? " 🟢" : " 🔴"}
 
-            <button onClick={() => callUser(c.contact_phone, "audio")}>
-              📞 Audio
-            </button>
+              <br />
 
-            <button onClick={() => callUser(c.contact_phone, "video")}>
-              🎥 Video
-            </button>
-          </div>
-        ))
+              <button onClick={() => callUser(contactPhone, "audio")}>
+                📞
+              </button>
+
+              <button onClick={() => callUser(contactPhone, "video")}>
+                🎥
+              </button>
+            </div>
+          );
+        })
       )}
     </div>
   );
