@@ -268,25 +268,28 @@ function Contacts() {
         <p>No contacts found</p>
       ) : (
         contacts.map((c) => {
-          const contactPhone = c.contact_phone.trim();
+  const contactPhone = (c.contact_phone || c.phone || "").trim();
 
-          return (
-            <div key={contactPhone}>
-              <b>{c.name}</b> ({contactPhone})
-              {onlineUsers.includes(contactPhone) ? " 🟢" : " 🔴"}
+  if (!contactPhone) return null; // ✅ skip broken data
 
-              <br />
+  return (
+    <div key={contactPhone}>
+      <b>{c.name || "Unknown"}</b> ({contactPhone})
 
-              <button onClick={() => callUser(contactPhone, "audio")}>
-                📞
-              </button>
+      {onlineUsers.includes(contactPhone) ? " 🟢" : " 🔴"}
 
-              <button onClick={() => callUser(contactPhone, "video")}>
-                🎥
-              </button>
-            </div>
-          );
-        })
+      <br />
+
+      <button onClick={() => callUser(contactPhone, "audio")}>
+        📞
+      </button>
+
+      <button onClick={() => callUser(contactPhone, "video")}>
+        🎥
+      </button>
+    </div>
+  );
+})
       )}
     </div>
   );
