@@ -80,26 +80,64 @@ io.on("connection", (socket) => {
 
   // ✅ CALL USER
   socket.on("callUser", ({ from, to, offer, type }) => {
-    const callKey = getCallKey(from, to);
+
+  const callKey = getCallKey(from, to);
+
+  console.log(
+    "CALL ATTEMPT:",
+    callKey,
+    type
+  );
+
+  // 🚨 COLLISION DETECTED
+  if (activeCalls[callKey]) {
 
     console.log(
-      "CALL ATTEMPT:",
-      callKey,
-      type
+      "CALL COLLISION DETECTED:",
+      callKey
     );
 
-    console.log("CALL:", from, "->", to);
+    io.to(socket.id).emit("callCollision", {
+      existingCall: activeCalls[callKey]
+    });
 
-    if (onlineUsers[to]) {
-      io.to(onlineUsers[to]).emit("incomingCall", {
+    return;
+  }
+
+  // Save active call
+  activeCalls[callKey] = {
+    caller: from,
+    receiver: to,
+    type,
+    timestamp: Date.now()
+  };
+
+  console.log(
+    "ACTIVE CALL STORED:",
+    activeCalls[callKey]
+  );
+
+  if (onlineUsers[to]) {
+
+    io.to(onlineUsers[to]).emit(
+      "incomingCall",
+      {
         from,
         offer,
         type,
-      });
-    } else {
-      console.log("User not online:", to);
-    }
-  });
+      }
+    );
+
+  } else {
+
+    console.log(
+      "User not online:",
+      to
+    );
+
+  }
+
+});
 
   // ✅ ACCEPT CALL (FIXED)
   socket.on("acceptCall", ({ to, answer }) => {
@@ -120,11 +158,24 @@ io.on("connection", (socket) => {
   });
 
   // ✅ END CALL
-  socket.on("endCall", ({ to }) => {
-    if (onlineUsers[to]) {
-      io.to(onlineUsers[to]).emit("callEnded");
-    }
-  });
+ socket.on("endCall", ({ from, to }) => {
+
+  const callKey =
+    getCallKey(from, to);
+
+  delete activeCalls[callKey];
+
+  console.log(
+    "ACTIVE CALL REMOVED:",
+    callKey
+  );
+
+  if (onlineUsers[to]) {
+    io.to(onlineUsers[to]).emit(
+      "callEnded"
+    );
+  }
+});
 
   // ✅ REJECT CALL
   socket.on("rejectCall", ({ to }) => {
