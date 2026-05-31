@@ -8,6 +8,8 @@ function Contacts() {
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const [callType, setCallType] = useState(null);
   const [currentCallUser, setCurrentCallUser] = useState(null);
 
   const [localStream, setLocalStream] = useState(null);
@@ -102,7 +104,7 @@ function Contacts() {
 
     setRemoteStream(stream);
   };
-  
+
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       console.log("Sending ICE:", event.candidate);
@@ -136,6 +138,9 @@ function Contacts() {
     const cleanTarget = targetPhone.trim();
 
     setCurrentCallUser(cleanTarget);
+
+    setCalling(true);
+    setCallType(type);
 
     const stream = await startLocalStream(type);
     const pc = createPeerConnection(cleanTarget);
@@ -262,7 +267,8 @@ useEffect(() => {
     }
 
     pendingCandidates.current = [];
-
+    
+    setCalling(false);
     setCallActive(true);
   });
 
@@ -316,7 +322,7 @@ useEffect(() => {
     socket.emit("endCall", {
       to: currentCallUser,
     });
-
+    setCalling(false);
     setCallActive(false);
     setRemoteStream(null);
   };
@@ -328,6 +334,7 @@ useEffect(() => {
     });
 
     socket.on("callRejected", () => {
+      setCalling(false);
       alert("Call rejected");
     });
 
@@ -349,6 +356,30 @@ useEffect(() => {
           <button onClick={rejectCall}>Reject</button>
         </div>
       )}
+      {calling && (
+      <div
+        style={{
+          border: "2px solid blue",
+          padding: "15px",
+          marginBottom: "15px",
+          borderRadius: "10px",
+        }}
+      >
+        <h3>
+          Calling {currentCallUser}
+        </h3>
+
+        <p>
+          {callType === "video"
+            ? "🎥 Video Call Ringing..."
+            : "📞 Audio Call Ringing..."}
+        </p>
+
+        <button onClick={endCall}>
+          Cancel
+        </button>
+      </div>
+    )}
 
       {/* 📞 ACTIVE */}
       {callActive && (
