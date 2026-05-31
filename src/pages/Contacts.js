@@ -398,6 +398,56 @@ useEffect(() => {
 
 }, []);
 
+useEffect(() => {
+
+  socket.on(
+    "videoUpgradeRequest",
+    (data) => {
+
+      console.log(
+        "VIDEO UPGRADE REQUEST",
+        data
+      );
+
+      alert(
+        `${data.requestedBy} wants to upgrade to Video`
+      );
+    }
+  );
+
+  return () => {
+    socket.off(
+      "videoUpgradeRequest"
+    );
+  };
+
+}, []);
+
+  useEffect(() => {
+
+  socket.on(
+    "callCancelled",
+    (data) => {
+
+      console.log(
+        "CALL CANCELLED",
+        data
+      );
+
+      alert(
+        data.reason
+      );
+    }
+  );
+
+  return () => {
+    socket.off(
+      "callCancelled"
+    );
+  };
+
+}, []);
+
   
 
   return (
