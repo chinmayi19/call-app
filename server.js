@@ -89,20 +89,41 @@ io.on("connection", (socket) => {
     type
   );
 
-  // 🚨 COLLISION DETECTED
-  if (activeCalls[callKey]) {
+ // 🚨 CHECK FOR TRUE COLLISION
+if (activeCalls[callKey]) {
+
+  const existingCall =
+    activeCalls[callKey];
+
+  const timeDiff =
+    Date.now() -
+    existingCall.timestamp;
+
+  console.log(
+    "TIME DIFFERENCE:",
+    timeDiff
+  );
+
+  // only collision if within 3 sec
+  if (timeDiff < 3000) {
 
     console.log(
-      "CALL COLLISION DETECTED:",
-      callKey
+      "🚨 TRUE COLLISION DETECTED"
     );
 
-    io.to(socket.id).emit("callCollision", {
-      existingCall: activeCalls[callKey]
-    });
+    io.to(socket.id).emit(
+      "callCollision",
+      {
+        existingCall
+      }
+    );
 
     return;
   }
+
+  // old call, replace it
+  delete activeCalls[callKey];
+}
 
   // Save active call
   activeCalls[callKey] = {
