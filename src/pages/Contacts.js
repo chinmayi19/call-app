@@ -525,6 +525,8 @@ useEffect(() => {
 
   useEffect(() => {
 
+    console.log("VIDEO UPGRADE OFFER RECEIVED");
+
   socket.on(
     "videoUpgradeOffer",
     async ({ offer }) => {
@@ -586,6 +588,8 @@ useEffect(() => {
 }, []);
 
   useEffect(() => {
+
+    console.log("VIDEO UPGRADE ANSWER RECEIVED");
 
   socket.on(
     "videoUpgradeAnswer",
@@ -665,10 +669,10 @@ const rejectVideoUpgrade = () => {
 
     if (!pc) return;
 
+    console.log("STARTING VIDEO UPGRADE");
+
     const videoStream =
-      await navigator
-        .mediaDevices
-        .getUserMedia({
+      await navigator.mediaDevices.getUserMedia({
           video: true
         });
 
@@ -676,10 +680,9 @@ const rejectVideoUpgrade = () => {
       videoStream
         .getVideoTracks()[0];
 
-    pc.addTrack(
-      videoTrack,
-      videoStream
-    );
+    pc.addTrack(videoTrack, videoStream);
+
+    console.log("VIDEO TRACK ADDED");
 
     const offer =
       await pc.createOffer();
@@ -689,8 +692,7 @@ const rejectVideoUpgrade = () => {
         offer
       );
 
-    socket.emit(
-      "videoUpgradeOffer",
+    socket.emit("videoUpgradeOffer",
       {
         to:
           currentCallUser,
