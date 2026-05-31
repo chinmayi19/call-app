@@ -9,6 +9,7 @@ function Contacts() {
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
   const [calling, setCalling] = useState(false);
   const [callType, setCallType] = useState(null);
   const [currentCallUser, setCurrentCallUser] = useState(null);
@@ -224,6 +225,7 @@ function Contacts() {
     });
 
     setIncomingCall(null);
+    setCallDuration(0);
     setCallActive(true);
   };
 
@@ -270,6 +272,7 @@ useEffect(() => {
     pendingCandidates.current = [];
     
     setCalling(false);
+    setCallDuration(0);
     setCallActive(true);
   });
 
@@ -324,12 +327,14 @@ useEffect(() => {
       to: currentCallUser,
     });
     setCalling(false);
+    setCallDuration(0);
     setCallActive(false);
     setRemoteStream(null);
   };
 
   useEffect(() => {
     socket.on("callEnded", () => {
+      setCallDuration(0);
       setCallActive(false);
       setRemoteStream(null);
     });
@@ -344,6 +349,20 @@ useEffect(() => {
       socket.off("callRejected");
     };
   }, []);
+
+  useEffect(() => {
+    let interval;
+
+    if (callActive) {
+      interval = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [callActive]);
 
   return (
     <div style={{ padding: "20px" }}>
@@ -382,9 +401,28 @@ useEffect(() => {
 
       {/* 📞 ACTIVE */}
       {callActive && (
-        <div>
-          Call in progress
-          <button onClick={endCall}>End</button>
+        <div
+          style={{
+            border: "2px solid green",
+            padding: "15px",
+            marginBottom: "15px",
+            borderRadius: "10px",
+          }}
+        >
+          <h3>📞 Call in Progress</h3>
+
+          <p>
+            Duration:{" "}
+            {Math.floor(callDuration / 60)}
+            :
+            {(callDuration % 60)
+              .toString()
+              .padStart(2, "0")}
+          </p>
+
+          <button onClick={endCall}>
+            End Call
+          </button>
         </div>
       )}
 
