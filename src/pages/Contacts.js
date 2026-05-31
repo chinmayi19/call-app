@@ -485,15 +485,219 @@ useEffect(() => {
 
 }, [videoUpgradeRequest]);
 
+useEffect(() => {
+
+  socket.on(
+    "videoUpgradeAccepted",
+    () => {
+
+      alert(
+        "Video Upgrade Accepted"
+      );
+
+      // next step:
+      // switch audio -> video
+    }
+  );
+
+  socket.on(
+    "videoUpgradeRejected",
+    () => {
+
+      alert(
+        "User prefers Audio Only"
+      );
+    }
+  );
+
+  return () => {
+
+    socket.off(
+      "videoUpgradeAccepted"
+    );
+
+    socket.off(
+      "videoUpgradeRejected"
+    );
+  };
+
+}, []);
+
+  useEffect(() => {
+
+  socket.on(
+    "videoUpgradeOffer",
+    async ({ offer }) => {
+
+      const pc =
+        peerRef.current;
+
+      if (!pc) return;
+
+      const videoStream =
+        await navigator
+          .mediaDevices
+          .getUserMedia({
+            video: true
+          });
+
+      const videoTrack =
+        videoStream
+          .getVideoTracks()[0];
+
+      pc.addTrack(
+        videoTrack,
+        videoStream
+      );
+
+      await pc
+        .setRemoteDescription(
+          new RTCSessionDescription(
+            offer
+          )
+        );
+
+      const answer =
+        await pc
+          .createAnswer();
+
+      await pc
+        .setLocalDescription(
+          answer
+        );
+
+      socket.emit(
+        "videoUpgradeAnswer",
+        {
+          to:
+            currentCallUser,
+          answer
+        }
+      );
+    }
+  );
+
+  return () => {
+    socket.off(
+      "videoUpgradeOffer"
+    );
+  };
+
+}, []);
+
+  useEffect(() => {
+
+  socket.on(
+    "videoUpgradeAnswer",
+    async ({ answer }) => {
+
+      const pc =
+        peerRef.current;
+
+      if (!pc) return;
+
+      await pc
+        .setRemoteDescription(
+          new RTCSessionDescription(
+            answer
+          )
+        );
+
+      console.log(
+        "VIDEO UPGRADE COMPLETE"
+      );
+    }
+  );
+
+  return () => {
+    socket.off(
+      "videoUpgradeAnswer"
+    );
+  };
+
+}, []);
+
 const acceptVideoUpgrade = () => {
-  console.log("Video upgrade accepted");
+
+  socket.emit(
+    "acceptVideoUpgrade",
+    {
+      to:
+        videoUpgradeRequest
+          .requestedBy
+    }
+  );
+  startVideoUpgrade();
+  setVideoUpgradeRequest(
+    null
+  );
+
+  alert(
+    "Video upgrade accepted"
+  );
 };
 
 const rejectVideoUpgrade = () => {
-  console.log("Video upgrade rejected");
-  setVideoUpgradeRequest(null);
+
+  socket.emit(
+    "rejectVideoUpgrade",
+    {
+      to:
+        videoUpgradeRequest
+          .requestedBy
+    }
+  );
+
+  setVideoUpgradeRequest(
+    null
+  );
+
+  alert(
+    "Continuing Audio Call"
+  );
 };
 
+  const startVideoUpgrade =
+  async () => {
+
+    const pc =
+      peerRef.current;
+
+    if (!pc) return;
+
+    const videoStream =
+      await navigator
+        .mediaDevices
+        .getUserMedia({
+          video: true
+        });
+
+    const videoTrack =
+      videoStream
+        .getVideoTracks()[0];
+
+    pc.addTrack(
+      videoTrack,
+      videoStream
+    );
+
+    const offer =
+      await pc.createOffer();
+
+    await pc
+      .setLocalDescription(
+        offer
+      );
+
+    socket.emit(
+      "videoUpgradeOffer",
+      {
+        to:
+          currentCallUser,
+        offer
+      }
+    );
+};
   
 
   return (
