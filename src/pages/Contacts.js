@@ -88,8 +88,21 @@ function Contacts() {
       event.streams
     );
 
-    setRemoteStream(event.streams[0]);
+    const stream = event.streams[0];
+
+    console.log(
+      "Video Tracks:",
+      stream.getVideoTracks()
+    );
+
+    console.log(
+      "Audio Tracks:",
+      stream.getAudioTracks()
+    );
+
+    setRemoteStream(stream);
   };
+  
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       console.log("Sending ICE:", event.candidate);
@@ -156,6 +169,8 @@ function Contacts() {
   const stream = await startLocalStream(data.type);
   const pc = createPeerConnection(data.from);
 
+  peerRef.current = pc;
+
   stream.getTracks().forEach((track) => {
     pc.addTrack(track, stream);
   });
@@ -183,7 +198,7 @@ function Contacts() {
 
   pendingCandidates.current = [];
 
-  peerRef.current = pc;
+  
 });
 
     return () => socket.off("incomingCall");
@@ -261,7 +276,11 @@ useEffect(() => {
     const pc = peerRef.current;
 
     if (!pc) {
-      console.log("No peer connection yet");
+      console.log(
+        "No peer connection yet, queueing candidate"
+      );
+
+      pendingCandidates.current.push(candidate);
       return;
     }
 
