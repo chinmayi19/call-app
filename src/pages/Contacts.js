@@ -14,6 +14,10 @@ function Contacts() {
   const [remoteStream, setRemoteStream] = useState(null);
 
   const peerRef = useRef(null);
+  // Store ICE candidates that arrive before
+  // remoteDescription is ready
+  const pendingCandidates = useRef([]);
+
 
   const user = JSON.parse(localStorage.getItem("user"));
   const phone = user?.phone?.trim(); // ✅ FIX: trim
@@ -71,27 +75,48 @@ function Contacts() {
   };
 
   // 🎥 PEER CONNECTION
-  const createPeerConnection = (target) => {
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+ const createPeerConnection = (target) => {
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" }
+    ],
+  });
 
-    pc.ontrack = (event) => {
-      console.log("REMOTE STREAM");
-      setRemoteStream(event.streams[0]);
-    };
+  pc.ontrack = (event) => {
+    console.log(
+      "REMOTE STREAM RECEIVED",
+      event.streams
+    );
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit("iceCandidate", {
-          to: target,
-          candidate: event.candidate,
-        });
-      }
-    };
-
-    return pc;
+    setRemoteStream(event.streams[0]);
   };
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      console.log("Sending ICE:", event.candidate);
+
+      socket.emit("iceCandidate", {
+        to: target,
+        candidate: event.candidate,
+      });
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    console.log(
+      "Connection State:",
+      pc.connectionState
+    );
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log(
+      "ICE State:",
+      pc.iceConnectionState
+    );
+  };
+
+  return pc;
+};
 
   // 📞 CALL USER
   const callUser = async (targetPhone, type) => {
@@ -123,25 +148,43 @@ function Contacts() {
   // 📞 INCOMING CALL
   useEffect(() => {
     socket.on("incomingCall", async (data) => {
-      console.log("INCOMING CALL:", data);
+  console.log("INCOMING CALL:", data);
 
-      setIncomingCall(data);
-      setCurrentCallUser(data.from);
+  setIncomingCall(data);
+  setCurrentCallUser(data.from);
 
-      const stream = await startLocalStream(data.type);
-      const pc = createPeerConnection(data.from);
+  const stream = await startLocalStream(data.type);
+  const pc = createPeerConnection(data.from);
 
-      // ✅ IMPORTANT FIX
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+  stream.getTracks().forEach((track) => {
+    pc.addTrack(track, stream);
+  });
 
-      await pc.setRemoteDescription(
-        new RTCSessionDescription(data.offer)
+  await pc.setRemoteDescription(
+    new RTCSessionDescription(data.offer)
+  );
+
+  console.log("Remote description set successfully");
+
+  // Process any ICE candidates that arrived early
+  for (const candidate of pendingCandidates.current) {
+    try {
+      await pc.addIceCandidate(
+        new RTCIceCandidate(candidate)
       );
+      console.log("Queued ICE added");
+    } catch (err) {
+      console.error(
+        "Queued ICE Error:",
+        err
+      );
+    }
+  }
 
-      peerRef.current = pc;
-    });
+  pendingCandidates.current = [];
+
+  peerRef.current = pc;
+});
 
     return () => socket.off("incomingCall");
   }, []);
@@ -172,32 +215,79 @@ function Contacts() {
   };
 
   // ✅ CALL STARTED
-  useEffect(() => {
-    socket.on("callStarted", async ({ answer }) => {
-      const pc = peerRef.current;
-      if (!pc) return;
+  // ✅ CALL STARTED
+useEffect(() => {
+  socket.on("callStarted", async ({ answer }) => {
+    const pc = peerRef.current;
 
-      await pc.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
+    if (!pc) return;
 
-      setCallActive(true);
-    });
+    await pc.setRemoteDescription(
+      new RTCSessionDescription(answer)
+    );
 
-    return () => socket.off("callStarted");
-  }, []);
+    console.log(
+      "Answer remote description set"
+    );
+
+    // Process queued ICE candidates
+    for (const candidate of pendingCandidates.current) {
+      try {
+        await pc.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+
+        console.log("Queued ICE added");
+      } catch (err) {
+        console.error(
+          "Queued ICE Error:",
+          err
+        );
+      }
+    }
+
+    pendingCandidates.current = [];
+
+    setCallActive(true);
+  });
+
+  return () => socket.off("callStarted");
+}, []);
 
   // ✅ ICE
-  useEffect(() => {
-    socket.on("iceCandidate", async ({ candidate }) => {
-      const pc = peerRef.current;
-      if (!pc) return;
+  // ✅ ICE
+useEffect(() => {
+  socket.on("iceCandidate", async ({ candidate }) => {
+    const pc = peerRef.current;
 
-      await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    });
+    if (!pc) {
+      console.log("No peer connection yet");
+      return;
+    }
 
-    return () => socket.off("iceCandidate");
-  }, []);
+    try {
+      if (!pc.remoteDescription) {
+        console.log("Queueing ICE candidate");
+
+        pendingCandidates.current.push(candidate);
+        return;
+      }
+
+      await pc.addIceCandidate(
+        new RTCIceCandidate(candidate)
+      );
+
+      console.log("ICE added successfully");
+    } catch (err) {
+      console.error(
+        "ICE Add Error:",
+        err
+      );
+    }
+  });
+
+  return () => socket.off("iceCandidate");
+}, []);
 
   // ❌ END CALL
   const endCall = () => {
@@ -261,6 +351,15 @@ function Contacts() {
         autoPlay
         playsInline
         ref={(v) => v && remoteStream && (v.srcObject = remoteStream)}
+      />
+
+      <audio
+        autoPlay
+        ref={(a) => {
+          if (a && remoteStream) {
+            a.srcObject = remoteStream;
+          }
+        }}
       />
 
       {/* 👥 CONTACTS */}
