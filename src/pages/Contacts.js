@@ -9,13 +9,17 @@ function Contacts() {
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
+  
   const [calling, setCalling] = useState(false);
   const [callType, setCallType] = useState(null);
   const [currentCallUser, setCurrentCallUser] = useState(null);
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+
+  const [muted, setMuted] = useState(false);
+
+  const [cameraOff, setCameraOff] = useState(false);
 
   const peerRef = useRef(null);
   // Store ICE candidates that arrive before
@@ -225,7 +229,7 @@ function Contacts() {
     });
 
     setIncomingCall(null);
-    setCallDuration(0);
+    
     setCallActive(true);
   };
 
@@ -272,7 +276,7 @@ useEffect(() => {
     pendingCandidates.current = [];
     
     setCalling(false);
-    setCallDuration(0);
+    
     setCallActive(true);
   });
 
@@ -327,14 +331,23 @@ useEffect(() => {
       to: currentCallUser,
     });
     setCalling(false);
-    setCallDuration(0);
     setCallActive(false);
     setRemoteStream(null);
   };
 
+  const toggleCamera = () => {
+    if (!localStream) return;
+
+    localStream.getVideoTracks().forEach((track) => {
+      track.enabled = !track.enabled;
+    });
+
+    setCameraOff((prev) => !prev);
+  };
+
   useEffect(() => {
     socket.on("callEnded", () => {
-      setCallDuration(0);
+      
       setCallActive(false);
       setRemoteStream(null);
     });
@@ -350,19 +363,17 @@ useEffect(() => {
     };
   }, []);
 
-  useEffect(() => {
-    let interval;
+  const toggleMute = () => {
+    if (!localStream) return;
 
-    if (callActive) {
-      interval = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    }
+    localStream.getAudioTracks().forEach((track) => {
+      track.enabled = !track.enabled;
+    });
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [callActive]);
+    setMuted((prev) => !prev);
+  };
+
+  
 
   return (
     <div style={{ padding: "20px" }}>
@@ -399,32 +410,26 @@ useEffect(() => {
       </div>
     )}
 
-      {/* 📞 ACTIVE */}
-      {callActive && (
-        <div
-          style={{
-            border: "2px solid green",
-            padding: "15px",
-            marginBottom: "15px",
-            borderRadius: "10px",
-          }}
-        >
-          <h3>📞 Call in Progress</h3>
-
-          <p>
-            Duration:{" "}
-            {Math.floor(callDuration / 60)}
-            :
-            {(callDuration % 60)
-              .toString()
-              .padStart(2, "0")}
-          </p>
-
-          <button onClick={endCall}>
-            End Call
+     {/* 📞 ACTIVE */}
+     {callActive && (
+      <div>
+        <h3>📞 Call in Progress</h3>
+        <button onClick={toggleMute}>
+          {muted ? "🎤 Unmute" : "🔇 Mute"}
+        </button>
+        {localStream?.getVideoTracks()?.length > 0 && (
+          <button onClick={toggleCamera}>
+            {cameraOff
+              ? "📷 Turn Camera On"
+              : "🚫 Turn Camera Off"}
           </button>
-        </div>
-      )}
+        )}
+        
+        <button onClick={endCall}>
+          End Call
+        </button>
+      </div>
+    )} 
 
       {/* 🎥 VIDEO */}
       <video
