@@ -328,6 +328,7 @@ useEffect(() => {
     if (localStream) localStream.getTracks().forEach(t => t.stop());
 
     socket.emit("endCall", {
+      from: phone,
       to: currentCallUser,
     });
     setCalling(false);
@@ -372,6 +373,30 @@ useEffect(() => {
 
     setMuted((prev) => !prev);
   };
+  useEffect(() => {
+
+  socket.on(
+    "callCollision",
+    (data) => {
+
+      console.log(
+        "CALL COLLISION",
+        data
+      );
+
+      alert(
+        "Call collision detected!"
+      );
+    }
+  );
+
+  return () => {
+    socket.off(
+      "callCollision"
+    );
+  };
+
+}, []);
 
   
 
