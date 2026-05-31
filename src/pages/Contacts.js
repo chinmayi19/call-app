@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import api from "../services/api";
 import socket from "../socket";
+import IncomingCallModal from "../components/IncomingCallModal";
 
 function Contacts() {
   const [contacts, setContacts] = useState([]);
@@ -349,13 +350,11 @@ useEffect(() => {
       <h2>Contacts</h2>
 
       {/* 📞 INCOMING */}
-      {incomingCall && (
-        <div>
-          Incoming call from {incomingCall.from}
-          <button onClick={acceptCall}>Accept</button>
-          <button onClick={rejectCall}>Reject</button>
-        </div>
-      )}
+      <IncomingCallModal
+        incomingCall={incomingCall}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
       {calling && (
       <div
         style={{
