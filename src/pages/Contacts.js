@@ -221,6 +221,11 @@ function Contacts() {
 
   // ✅ ACCEPT CALL
   const acceptCall = async () => {
+
+    console.log(
+      "acceptCall peerRef:",
+        peerRef.current
+      );
     const pc = peerRef.current;
 
     const answer = await pc.createAnswer();
