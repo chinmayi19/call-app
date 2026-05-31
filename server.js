@@ -107,19 +107,51 @@ if (activeCalls[callKey]) {
   // only collision if within 3 sec
   if (timeDiff < 3000) {
 
+  console.log(
+    "🚨 TRUE COLLISION DETECTED"
+  );
+
+  // AUDIO vs VIDEO
+  if (
+    existingCall.callType === "audio" &&
+    type === "video"
+  ) {
+
     console.log(
-      "🚨 TRUE COLLISION DETECTED"
+      "AUDIO WINS"
     );
 
     io.to(socket.id).emit(
-      "callCollision",
+      "callCancelled",
       {
-        existingCall
+        reason:
+          "Audio call already exists"
+      }
+    );
+
+    io.to(
+      onlineUsers[
+        existingCall.caller
+      ]
+    ).emit(
+      "videoUpgradeRequest",
+      {
+        requestedBy: from
       }
     );
 
     return;
   }
+
+  io.to(socket.id).emit(
+    "callCollision",
+    {
+      existingCall
+    }
+  );
+
+  return;
+}
 
   // old call, replace it
   delete activeCalls[callKey];
