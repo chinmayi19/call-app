@@ -531,17 +531,22 @@ useEffect(() => {
     "videoUpgradeOffer",
     async ({ offer }) => {
 
+      console.log(
+      "VIDEO UPGRADE OFFER RECEIVED"
+    );
+
       const pc =
         peerRef.current;
 
       if (!pc) return;
 
       const videoStream =
-        await navigator
-          .mediaDevices
-          .getUserMedia({
-            video: true
-          });
+        await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: true
+        });
+
+      setLocalStream(videoStream);
 
       const videoTrack =
         videoStream
@@ -594,6 +599,10 @@ useEffect(() => {
   socket.on(
     "videoUpgradeAnswer",
     async ({ answer }) => {
+
+      console.log(
+        "VIDEO UPGRADE ANSWER RECEIVED"
+      );
 
       const pc =
         peerRef.current;
@@ -673,8 +682,11 @@ const rejectVideoUpgrade = () => {
 
     const videoStream =
       await navigator.mediaDevices.getUserMedia({
-          video: true
-        });
+        audio: true,
+        video: true
+      });
+
+    setLocalStream(videoStream);
 
     const videoTrack =
       videoStream
