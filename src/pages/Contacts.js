@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "../services/api";
 import socket from "../socket";
 import IncomingCallModal from "../components/IncomingCallModal";
-
+import VideoUpgradeModal from "../components/VideoUpgradeModal";
 function Contacts() {
   const [contacts, setContacts] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -20,6 +20,10 @@ function Contacts() {
   const [muted, setMuted] = useState(false);
 
   const [cameraOff, setCameraOff] = useState(false);
+
+  const [videoUpgradeRequest, setVideoUpgradeRequest] = useState(null);
+
+  const [upgradeCountdown, setUpgradeCountdown] = useState(5);
 
   const peerRef = useRef(null);
   // Store ICE candidates that arrive before
@@ -409,9 +413,7 @@ useEffect(() => {
         data
       );
 
-      alert(
-        `${data.requestedBy} wants to upgrade to Video`
-      );
+      setVideoUpgradeRequest(data);
     }
   );
 
@@ -448,10 +450,61 @@ useEffect(() => {
 
 }, []);
 
+useEffect(() => {
+
+  if (!videoUpgradeRequest)
+    return;
+
+  setUpgradeCountdown(5);
+
+  const interval =
+    setInterval(() => {
+
+      setUpgradeCountdown(
+        (prev) => {
+
+          if (prev <= 1) {
+
+            clearInterval(
+              interval
+            );
+
+            rejectVideoUpgrade();
+
+            return 0;
+          }
+
+          return prev - 1;
+        }
+      );
+
+    }, 1000);
+
+  return () =>
+    clearInterval(interval);
+
+}, [videoUpgradeRequest]);
+
+const acceptVideoUpgrade = () => {
+  console.log("Video upgrade accepted");
+};
+
+const rejectVideoUpgrade = () => {
+  console.log("Video upgrade rejected");
+  setVideoUpgradeRequest(null);
+};
+
   
 
   return (
     <div style={{ padding: "20px" }}>
+
+      <VideoUpgradeModal
+        request={videoUpgradeRequest}
+        onAccept={acceptVideoUpgrade}
+        onReject={rejectVideoUpgrade}
+      />
+
       <h2>Contacts</h2>
 
       {/* 📞 INCOMING */}
