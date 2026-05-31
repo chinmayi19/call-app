@@ -57,6 +57,12 @@ const io = new Server(server, {
 });
 
 let onlineUsers = {};
+let activeCalls = {};
+
+function getCallKey(a, b) {
+  return [a, b].sort().join("-");
+}
+
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -74,6 +80,14 @@ io.on("connection", (socket) => {
 
   // ✅ CALL USER
   socket.on("callUser", ({ from, to, offer, type }) => {
+    const callKey = getCallKey(from, to);
+
+    console.log(
+      "CALL ATTEMPT:",
+      callKey,
+      type
+    );
+
     console.log("CALL:", from, "->", to);
 
     if (onlineUsers[to]) {
