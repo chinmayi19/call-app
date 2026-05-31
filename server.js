@@ -108,13 +108,24 @@ io.on("connection", (socket) => {
   activeCalls[callKey] = {
     caller: from,
     receiver: to,
-    type,
-    timestamp: Date.now()
+
+    callType: type,
+
+    status: "ringing",
+
+    timestamp: Date.now(),
+
+    pendingUpgrade: null
   };
 
   console.log(
     "ACTIVE CALL STORED:",
     activeCalls[callKey]
+  );
+
+  console.log(
+    "STATUS:",
+    activeCalls[callKey].status
   );
 
   if (onlineUsers[to]) {
