@@ -67,6 +67,36 @@ function getCallKey(a, b) {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  socket.on(
+  "acceptVideoUpgrade",
+  ({ to }) => {
+
+    if (onlineUsers[to]) {
+
+      io.to(
+        onlineUsers[to]
+      ).emit(
+        "videoUpgradeAccepted"
+      );
+    }
+  }
+);
+
+  socket.on(
+  "rejectVideoUpgrade",
+  ({ to }) => {
+
+    if (onlineUsers[to]) {
+
+      io.to(
+        onlineUsers[to]
+      ).emit(
+        "videoUpgradeRejected"
+      );
+    }
+  }
+);
+
   // ✅ JOIN
   socket.on("join", ({ phone }) => {
     if (!phone) return;
@@ -220,6 +250,38 @@ if (activeCalls[callKey]) {
       });
     }
   });
+
+  socket.on(
+  "videoUpgradeOffer",
+  ({ to, offer }) => {
+
+    if (onlineUsers[to]) {
+
+      io.to(
+        onlineUsers[to]
+      ).emit(
+        "videoUpgradeOffer",
+        { offer }
+      );
+    }
+  }
+);
+
+  socket.on(
+  "videoUpgradeAnswer",
+  ({ to, answer }) => {
+
+    if (onlineUsers[to]) {
+
+      io.to(
+        onlineUsers[to]
+      ).emit(
+        "videoUpgradeAnswer",
+        { answer }
+      );
+    }
+  }
+);
 
   // ✅ END CALL
  socket.on("endCall", ({ from, to }) => {
